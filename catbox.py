@@ -69,23 +69,6 @@ START_MESSAGE = f"""🔗 <b>Catbox File Upload Bot</b>
 
 Send me any file and I'll upload it to Catbox and give you a direct link!
 
-<b>Supported file types:</b>
-• Documents (PDF, ZIP, etc.)
-• Images (JPG, PNG, GIF ≤20MB, etc.)
-• Videos (MP4, AVI, etc.)
-• Audio files (MP3, WAV, etc.)
-• Voice messages
-• Video notes
-• Animations/GIFs
-• Stickers
-
-<b>Limits:</b>
-• Max file size: 200 MB
-• GIF files: Max 20 MB
-• Files stored forever on Catbox
-
-❌ <b>Not allowed:</b> .exe, .scr, .cpl, .doc*, .jar files
-
 Just send me a file and I'll handle the rest! 📎"""
 
 HELP_SHORT_MESSAGE = f"""
@@ -111,11 +94,11 @@ HELP_DETAILED_MESSAGE = f"""
 • Voice notes, Video messages, Stickers
 
 <b>Rules & Restrictions:</b>
-• Forbidden: .exe, .scr, .cpl, .doc*, .jar
+• Forbidden: .exe, .scr, .cpl, .doc, .jar
 • No malware, illegal content, full episodes
 • Adult content is permitted
 
-⚠️ Files live forever on Catbox!"""
+☁️ Files live forever on Catbox!"""
 
 # Success messages for uploads
 SUCCESS_MESSAGES = [
@@ -199,6 +182,10 @@ def setup_colored_logging():
 
 # Initialize colored logger
 logger = setup_colored_logging()
+
+def is_private_chat(update: Update) -> bool:
+    """Check if the message is from a private chat"""
+    return update.message.chat.type == 'private'
 
 def extract_user_info(msg: Message) -> Dict[str, Any]:
     """Extract user and chat information from message"""
@@ -393,7 +380,7 @@ async def upload_to_catbox(file_path: str, filename: str) -> str:
 
 async def process_file(update: Update, context: ContextTypes.DEFAULT_TYPE, file_obj, filename: str):
     """
-    Process and upload a file
+    Process and upload a file - ONLY works in private chats
     
     Args:
         update: Telegram update object
@@ -401,6 +388,12 @@ async def process_file(update: Update, context: ContextTypes.DEFAULT_TYPE, file_
         file_obj: Telegram file object
         filename: Name of the file
     """
+    # Check if it's a private chat
+    if not is_private_chat(update):
+        user_info = extract_user_info(update.message)
+        log_with_user_info("WARNING", f"📎 File upload attempt in non-private chat rejected: {filename}", user_info)
+        return  # Silently ignore - no response in groups
+    
     user_info = extract_user_info(update.message)
     log_with_user_info("INFO", f"📎 Processing file: {filename}", user_info)
     
@@ -444,7 +437,7 @@ async def process_file(update: Update, context: ContextTypes.DEFAULT_TYPE, file_
         # Download file to temporary location
         with tempfile.NamedTemporaryFile(delete=False) as temp_file:
             temp_path = temp_file.name
-            # FIXED: For python-telegram-bot 22.3, we need to get the File object first
+            # For python-telegram-bot 22.3, we need to get the File object first
             file_info = await file_obj.get_file()
             await file_info.download_to_drive(temp_path)
             logger.debug(f"📥 File downloaded to: {temp_path}")
@@ -456,10 +449,10 @@ async def process_file(update: Update, context: ContextTypes.DEFAULT_TYPE, file_
         success_message = random.choice(SUCCESS_MESSAGES)
         final_message = (
             f"{success_message}\n\n"
-            f"🔗 <b>Direct link:</b> <code>{catbox_url}</code>\n\n"
+            f"🔗 <b>Direct link:</b> {catbox_url}\n\n"
             f"📎 <b>Original filename:</b> <code>{filename}</code>\n"
             f"📏 <b>Size:</b> <code>{size_mb:.1f} MB</code>\n\n"
-            f"⚠️ <b>Note:</b> File is stored permanently on Catbox"
+            f"☁️ <b>Note:</b> File is stored permanently on Catbox"
         )
         await processing_msg.edit_text(final_message, parse_mode=ParseMode.HTML)
         
@@ -487,8 +480,14 @@ async def process_file(update: Update, context: ContextTypes.DEFAULT_TYPE, file_
                 logger.error(f"❌ Failed to clean up temporary file: {cleanup_error}")
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /start command"""
+    """Handle /start command - ONLY works in private chats"""
     try:
+        # Check if it's a private chat
+        if not is_private_chat(update):
+            user_info = extract_user_info(update.message)
+            log_with_user_info("WARNING", "🚀 /start command attempt in non-private chat rejected", user_info)
+            return  # Silently ignore - no response in groups
+        
         user_info = extract_user_info(update.message)
         log_with_user_info("INFO", "🚀 /start command executed", user_info)
         
@@ -529,8 +528,14 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.error(f"❌ Failed to send error message in start_command: {reply_error}")
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /help command"""
+    """Handle /help command - ONLY works in private chats"""
     try:
+        # Check if it's a private chat
+        if not is_private_chat(update):
+            user_info = extract_user_info(update.message)
+            log_with_user_info("WARNING", "❓ /help command attempt in non-private chat rejected", user_info)
+            return  # Silently ignore - no response in groups
+        
         user_info = extract_user_info(update.message)
         log_with_user_info("INFO", "❓ /help command executed", user_info)
         
@@ -557,7 +562,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.error(f"❌ Failed to send error message in help_command: {reply_error}")
 
 async def ping_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /ping command with latency measurement"""
+    """Handle /ping command with latency measurement - Works in ALL chat types"""
     try:
         user_info = extract_user_info(update.message)
         log_with_user_info("INFO", "🏓 /ping command executed", user_info)
@@ -565,10 +570,7 @@ async def ping_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         start_time = time.time()
         
         # Reply appropriately based on chat type
-        if update.message.chat.type in ['group', 'supergroup']:
-            ping_msg = await update.message.reply_text("🛰️ Pinging...")
-        else:
-            ping_msg = await update.message.reply_text("🛰️ Pinging...")
+        ping_msg = await update.message.reply_text("🛰️ Pinging...")
         
         end_time = time.time()
         latency = (end_time - start_time) * 1000  # Convert to milliseconds
@@ -594,9 +596,17 @@ async def ping_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.error(f"❌ Failed to send error message in ping_command: {reply_error}")
 
 async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle inline button callbacks"""
+    """Handle inline button callbacks - ONLY works in private chats"""
     try:
         query = update.callback_query
+        
+        # Check if it's a private chat (callback queries inherit from original message)
+        if query.message.chat.type != 'private':
+            user_info = extract_user_info(query.message)
+            log_with_user_info("WARNING", f"🔘 Callback query attempt in non-private chat rejected: {query.data}", user_info)
+            await query.answer("❌ This bot only works in private chats!")
+            return
+        
         user_info = extract_user_info(query.message)
         log_with_user_info("INFO", f"🔘 Callback query: {query.data}", user_info)
         
@@ -630,8 +640,14 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
             logger.error(f"❌ Failed to answer callback query: {answer_error}")
 
 async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle document files"""
+    """Handle document files - ONLY works in private chats"""
     try:
+        # Check if it's a private chat
+        if not is_private_chat(update):
+            user_info = extract_user_info(update.message)
+            log_with_user_info("WARNING", "📄 Document upload attempt in non-private chat rejected", user_info)
+            return  # Silently ignore - no response in groups
+        
         user_info = extract_user_info(update.message)
         document = update.message.document
         filename = document.file_name or f"document_{document.file_id}"
@@ -641,17 +657,25 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     except Exception as e:
         logger.error(f"❌ Error in handle_document: {e}")
-        try:
-            await update.message.reply_text(
-                "❌ An error occurred while processing your document. Please try again.",
-                parse_mode=ParseMode.HTML
-            )
-        except Exception as reply_error:
-            logger.error(f"❌ Failed to send error message in handle_document: {reply_error}")
+        # Only send error messages in private chats
+        if is_private_chat(update):
+            try:
+                await update.message.reply_text(
+                    "❌ An error occurred while processing your document. Please try again.",
+                    parse_mode=ParseMode.HTML
+                )
+            except Exception as reply_error:
+                logger.error(f"❌ Failed to send error message in handle_document: {reply_error}")
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle photo files"""
+    """Handle photo files - ONLY works in private chats"""
     try:
+        # Check if it's a private chat
+        if not is_private_chat(update):
+            user_info = extract_user_info(update.message)
+            log_with_user_info("WARNING", "📸 Photo upload attempt in non-private chat rejected", user_info)
+            return  # Silently ignore - no response in groups
+        
         user_info = extract_user_info(update.message)
         photo = update.message.photo[-1]  # Get highest resolution
         filename = f"photo_{photo.file_id}.jpg"
@@ -661,17 +685,25 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     except Exception as e:
         logger.error(f"❌ Error in handle_photo: {e}")
-        try:
-            await update.message.reply_text(
-                "❌ An error occurred while processing your photo. Please try again.",
-                parse_mode=ParseMode.HTML
-            )
-        except Exception as reply_error:
-            logger.error(f"❌ Failed to send error message in handle_photo: {reply_error}")
+        # Only send error messages in private chats
+        if is_private_chat(update):
+            try:
+                await update.message.reply_text(
+                    "❌ An error occurred while processing your photo. Please try again.",
+                    parse_mode=ParseMode.HTML
+                )
+            except Exception as reply_error:
+                logger.error(f"❌ Failed to send error message in handle_photo: {reply_error}")
 
 async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle video files"""
+    """Handle video files - ONLY works in private chats"""
     try:
+        # Check if it's a private chat
+        if not is_private_chat(update):
+            user_info = extract_user_info(update.message)
+            log_with_user_info("WARNING", "🎥 Video upload attempt in non-private chat rejected", user_info)
+            return  # Silently ignore - no response in groups
+        
         user_info = extract_user_info(update.message)
         video = update.message.video
         filename = video.file_name or f"video_{video.file_id}.mp4"
@@ -681,17 +713,25 @@ async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     except Exception as e:
         logger.error(f"❌ Error in handle_video: {e}")
-        try:
-            await update.message.reply_text(
-                "❌ An error occurred while processing your video. Please try again.",
-                parse_mode=ParseMode.HTML
-            )
-        except Exception as reply_error:
-            logger.error(f"❌ Failed to send error message in handle_video: {reply_error}")
+        # Only send error messages in private chats
+        if is_private_chat(update):
+            try:
+                await update.message.reply_text(
+                    "❌ An error occurred while processing your video. Please try again.",
+                    parse_mode=ParseMode.HTML
+                )
+            except Exception as reply_error:
+                logger.error(f"❌ Failed to send error message in handle_video: {reply_error}")
 
 async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle audio files"""
+    """Handle audio files - ONLY works in private chats"""
     try:
+        # Check if it's a private chat
+        if not is_private_chat(update):
+            user_info = extract_user_info(update.message)
+            log_with_user_info("WARNING", "🎵 Audio upload attempt in non-private chat rejected", user_info)
+            return  # Silently ignore - no response in groups
+        
         user_info = extract_user_info(update.message)
         audio = update.message.audio
         filename = audio.file_name or f"audio_{audio.file_id}.mp3"
@@ -701,17 +741,25 @@ async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     except Exception as e:
         logger.error(f"❌ Error in handle_audio: {e}")
-        try:
-            await update.message.reply_text(
-                "❌ An error occurred while processing your audio. Please try again.",
-                parse_mode=ParseMode.HTML
-            )
-        except Exception as reply_error:
-            logger.error(f"❌ Failed to send error message in handle_audio: {reply_error}")
+        # Only send error messages in private chats
+        if is_private_chat(update):
+            try:
+                await update.message.reply_text(
+                    "❌ An error occurred while processing your audio. Please try again.",
+                    parse_mode=ParseMode.HTML
+                )
+            except Exception as reply_error:
+                logger.error(f"❌ Failed to send error message in handle_audio: {reply_error}")
 
 async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle voice messages"""
+    """Handle voice messages - ONLY works in private chats"""
     try:
+        # Check if it's a private chat
+        if not is_private_chat(update):
+            user_info = extract_user_info(update.message)
+            log_with_user_info("WARNING", "🎤 Voice message upload attempt in non-private chat rejected", user_info)
+            return  # Silently ignore - no response in groups
+        
         user_info = extract_user_info(update.message)
         voice = update.message.voice
         filename = f"voice_{voice.file_id}.ogg"
@@ -721,17 +769,25 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     except Exception as e:
         logger.error(f"❌ Error in handle_voice: {e}")
-        try:
-            await update.message.reply_text(
-                "❌ An error occurred while processing your voice message. Please try again.",
-                parse_mode=ParseMode.HTML
-            )
-        except Exception as reply_error:
-            logger.error(f"❌ Failed to send error message in handle_voice: {reply_error}")
+        # Only send error messages in private chats
+        if is_private_chat(update):
+            try:
+                await update.message.reply_text(
+                    "❌ An error occurred while processing your voice message. Please try again.",
+                    parse_mode=ParseMode.HTML
+                )
+            except Exception as reply_error:
+                logger.error(f"❌ Failed to send error message in handle_voice: {reply_error}")
 
 async def handle_video_note(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle video notes (round video messages)"""
+    """Handle video notes (round video messages) - ONLY works in private chats"""
     try:
+        # Check if it's a private chat
+        if not is_private_chat(update):
+            user_info = extract_user_info(update.message)
+            log_with_user_info("WARNING", "📹 Video note upload attempt in non-private chat rejected", user_info)
+            return  # Silently ignore - no response in groups
+        
         user_info = extract_user_info(update.message)
         video_note = update.message.video_note
         filename = f"video_note_{video_note.file_id}.mp4"
@@ -741,17 +797,25 @@ async def handle_video_note(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     except Exception as e:
         logger.error(f"❌ Error in handle_video_note: {e}")
-        try:
-            await update.message.reply_text(
-                "❌ An error occurred while processing your video note. Please try again.",
-                parse_mode=ParseMode.HTML
-            )
-        except Exception as reply_error:
-            logger.error(f"❌ Failed to send error message in handle_video_note: {reply_error}")
+        # Only send error messages in private chats
+        if is_private_chat(update):
+            try:
+                await update.message.reply_text(
+                    "❌ An error occurred while processing your video note. Please try again.",
+                    parse_mode=ParseMode.HTML
+                )
+            except Exception as reply_error:
+                logger.error(f"❌ Failed to send error message in handle_video_note: {reply_error}")
 
 async def handle_animation(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle animations/GIFs"""
+    """Handle animations/GIFs - ONLY works in private chats"""
     try:
+        # Check if it's a private chat
+        if not is_private_chat(update):
+            user_info = extract_user_info(update.message)
+            log_with_user_info("WARNING", "🎞️ Animation upload attempt in non-private chat rejected", user_info)
+            return  # Silently ignore - no response in groups
+        
         user_info = extract_user_info(update.message)
         animation = update.message.animation
         filename = animation.file_name or f"animation_{animation.file_id}.gif"
@@ -761,17 +825,25 @@ async def handle_animation(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     except Exception as e:
         logger.error(f"❌ Error in handle_animation: {e}")
-        try:
-            await update.message.reply_text(
-                "❌ An error occurred while processing your animation. Please try again.",
-                parse_mode=ParseMode.HTML
-            )
-        except Exception as reply_error:
-            logger.error(f"❌ Failed to send error message in handle_animation: {reply_error}")
+        # Only send error messages in private chats
+        if is_private_chat(update):
+            try:
+                await update.message.reply_text(
+                    "❌ An error occurred while processing your animation. Please try again.",
+                    parse_mode=ParseMode.HTML
+                )
+            except Exception as reply_error:
+                logger.error(f"❌ Failed to send error message in handle_animation: {reply_error}")
 
 async def handle_sticker(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle stickers"""
+    """Handle stickers - ONLY works in private chats"""
     try:
+        # Check if it's a private chat
+        if not is_private_chat(update):
+            user_info = extract_user_info(update.message)
+            log_with_user_info("WARNING", "🔖 Sticker upload attempt in non-private chat rejected", user_info)
+            return  # Silently ignore - no response in groups
+        
         user_info = extract_user_info(update.message)
         sticker = update.message.sticker
         
@@ -790,13 +862,15 @@ async def handle_sticker(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     except Exception as e:
         logger.error(f"❌ Error in handle_sticker: {e}")
-        try:
-            await update.message.reply_text(
-                "❌ An error occurred while processing your sticker. Please try again.",
-                parse_mode=ParseMode.HTML
-            )
-        except Exception as reply_error:
-            logger.error(f"❌ Failed to send error message in handle_sticker: {reply_error}")
+        # Only send error messages in private chats
+        if is_private_chat(update):
+            try:
+                await update.message.reply_text(
+                    "❌ An error occurred while processing your sticker. Please try again.",
+                    parse_mode=ParseMode.HTML
+                )
+            except Exception as reply_error:
+                logger.error(f"❌ Failed to send error message in handle_sticker: {reply_error}")
 
 async def setup_bot_commands(application):
     """Set up bot commands menu"""
@@ -804,9 +878,8 @@ async def setup_bot_commands(application):
         logger.info("🔧 Setting up bot commands menu...")
         
         commands = [
-            BotCommand("start", "🚀 Start the bot and see welcome message"),
-            BotCommand("help", "❓ Get help and usage instructions"),
-            BotCommand("ping", "🏓 Check bot response time")
+            BotCommand("start", "🗯️ Welcome message"),
+            BotCommand("help", "🗒️ Get instructions")
         ]
         
         await application.bot.set_my_commands(commands)
@@ -816,19 +889,19 @@ async def setup_bot_commands(application):
         logger.error(f"❌ Error setting up bot commands: {e}")
 
 def setup_handlers(application):
-    """Configure all bot handlers"""
+    """Configure all bot handlers with private chat restrictions"""
     try:
         logger.info("🔧 Setting up bot handlers...")
         
-        # Command handlers
+        # Command handlers - /ping works everywhere, others only in private
         application.add_handler(CommandHandler("start", start_command))
         application.add_handler(CommandHandler("help", help_command))
-        application.add_handler(CommandHandler("ping", ping_command))
+        application.add_handler(CommandHandler("ping", ping_command))  # Works in all chat types
         
-        # Callback query handler
+        # Callback query handler - only in private chats
         application.add_handler(CallbackQueryHandler(callback_query_handler))
         
-        # File handlers
+        # File handlers - only work in private chats
         application.add_handler(MessageHandler(filters.Document.ALL, handle_document))
         application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
         application.add_handler(MessageHandler(filters.VIDEO, handle_video))
@@ -839,6 +912,7 @@ def setup_handlers(application):
         application.add_handler(MessageHandler(filters.Sticker.ALL, handle_sticker))
         
         logger.info("✅ Bot handlers setup completed")
+        logger.info("🔒 Bot restricted to private chats only (except /ping command)")
         
     except Exception as e:
         logger.error(f"❌ Error setting up handlers: {e}")
@@ -857,6 +931,7 @@ def main():
     """Main function to run the bot"""
     try:
         logger.info("🚀 Starting Catbox Upload Bot...")
+        logger.info("🔒 Bot configured for PRIVATE CHATS ONLY (except /ping)")
         
         if not BOT_TOKEN:
             logger.error("❌ TELEGRAM_BOT_TOKEN environment variable not set")
@@ -880,6 +955,7 @@ def main():
         
         # Start the bot
         logger.info("🤖 Bot is now running and ready to accept files!")
+        logger.info("🔒 PRIVATE CHAT MODE: Only responds in private chats (except /ping)")
         logger.info("📡 Press Ctrl+C to stop the bot")
         
         application.run_polling(allowed_updates=Update.ALL_TYPES)
