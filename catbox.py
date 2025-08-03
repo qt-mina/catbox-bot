@@ -408,7 +408,8 @@ async def process_file(update: Update, context: ContextTypes.DEFAULT_TYPE, file_
             logger.error(f"❌ {error_msg}")
             await update.message.reply_text(
                 f"❌ <b>Upload rejected:</b> {error_msg}",
-                parse_mode=ParseMode.HTML
+                parse_mode=ParseMode.HTML,
+                disable_web_page_preview=True
             )
             return
             
@@ -418,7 +419,8 @@ async def process_file(update: Update, context: ContextTypes.DEFAULT_TYPE, file_
             log_with_user_info("WARNING", f"File rejected: {error_msg}", user_info)
             await update.message.reply_text(
                 f"❌ <b>Upload rejected:</b> {error_msg}",
-                parse_mode=ParseMode.HTML
+                parse_mode=ParseMode.HTML,
+                disable_web_page_preview=True
             )
             return
         
@@ -429,7 +431,8 @@ async def process_file(update: Update, context: ContextTypes.DEFAULT_TYPE, file_
             f"📎 <b>File:</b> <code>{filename}</code>\n"
             f"📏 <b>Size:</b> <code>{size_mb:.1f} MB</code>\n\n"
             f"Downloading and uploading to Catbox...",
-            parse_mode=ParseMode.HTML
+            parse_mode=ParseMode.HTML,
+            disable_web_page_preview=True
         )
         
         log_with_user_info("INFO", f"📥 Starting download: {filename} ({size_mb:.1f} MB)", user_info)
@@ -452,9 +455,13 @@ async def process_file(update: Update, context: ContextTypes.DEFAULT_TYPE, file_
             f"🔗 <b>Direct link:</b> {catbox_url}\n\n"
             f"📎 <b>Original filename:</b> <code>{filename}</code>\n"
             f"📏 <b>Size:</b> <code>{size_mb:.1f} MB</code>\n\n"
-            f"☁️ <b>Note:</b> File is stored permanently on Catbox"
+            f"☁️ <b>File is stored permanently on Catbox</b>"
         )
-        await processing_msg.edit_text(final_message, parse_mode=ParseMode.HTML)
+        await processing_msg.edit_text(
+            final_message, 
+            parse_mode=ParseMode.HTML,
+            disable_web_page_preview=True
+        )
         
         log_with_user_info("INFO", f"✅ Upload completed: {filename} -> {catbox_url}", user_info)
                 
@@ -464,9 +471,17 @@ async def process_file(update: Update, context: ContextTypes.DEFAULT_TYPE, file_
         
         try:
             if processing_msg:
-                await processing_msg.edit_text(error_message, parse_mode=ParseMode.HTML)
+                await processing_msg.edit_text(
+                    error_message, 
+                    parse_mode=ParseMode.HTML,
+                    disable_web_page_preview=True
+                )
             else:
-                await update.message.reply_text(error_message, parse_mode=ParseMode.HTML)
+                await update.message.reply_text(
+                    error_message, 
+                    parse_mode=ParseMode.HTML,
+                    disable_web_page_preview=True
+                )
         except Exception as reply_error:
             logger.error(f"❌ Failed to send error message: {reply_error}")
             
