@@ -7,7 +7,7 @@ import threading
 from typing import Tuple, Dict, Any
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import aiohttp
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Message
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Message, BotCommand
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 from telegram.constants import ParseMode
 
@@ -444,6 +444,7 @@ async def process_file(update: Update, context: ContextTypes.DEFAULT_TYPE, file_
         # Download file to temporary location
         with tempfile.NamedTemporaryFile(delete=False) as temp_file:
             temp_path = temp_file.name
+            # FIXED: Use the correct method name for downloading files
             await file_obj.download_to_drive(temp_path)
             logger.debug(f"📥 File downloaded to: {temp_path}")
         
@@ -490,7 +491,13 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_info = extract_user_info(update.message)
         log_with_user_info("INFO", "🚀 /start command executed", user_info)
         
-        await update.message.reply_text(START_MESSAGE, parse_mode=ParseMode.HTML)
+        # FIXED: Send start message with random photo
+        random_photo = random.choice(RANDOM_PHOTOS)
+        await update.message.reply_photo(
+            photo=random_photo,
+            caption=START_MESSAGE,
+            parse_mode=ParseMode.HTML
+        )
         
     except Exception as e:
         logger.error(f"❌ Error in start_command: {e}")
@@ -578,8 +585,8 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
             keyboard = [[InlineKeyboardButton("📕 Minimize Help", callback_data="help_minimize")]]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
-            await query.edit_message_text(
-                HELP_DETAILED_MESSAGE,
+            await query.edit_message_caption(
+                caption=HELP_DETAILED_MESSAGE,
                 parse_mode=ParseMode.HTML,
                 reply_markup=reply_markup
             )
@@ -589,8 +596,8 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
             keyboard = [[InlineKeyboardButton("📖 Expand Help", callback_data="help_expand")]]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
-            await query.edit_message_text(
-                HELP_SHORT_MESSAGE,
+            await query.edit_message_caption(
+                caption=HELP_SHORT_MESSAGE,
                 parse_mode=ParseMode.HTML,
                 reply_markup=reply_markup
             )
@@ -772,6 +779,23 @@ async def handle_sticker(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as reply_error:
             logger.error(f"❌ Failed to send error message in handle_sticker: {reply_error}")
 
+async def setup_bot_commands(application):
+    """Set up bot commands menu"""
+    try:
+        logger.info("🔧 Setting up bot commands menu...")
+        
+        commands = [
+            BotCommand("start", "🚀 Start the bot and see welcome message"),
+            BotCommand("help", "❓ Get help and usage instructions"),
+            BotCommand("ping", "🏓 Check bot response time")
+        ]
+        
+        await application.bot.set_my_commands(commands)
+        logger.info("✅ Bot commands menu setup completed")
+        
+    except Exception as e:
+        logger.error(f"❌ Error setting up bot commands: {e}")
+
 def setup_handlers(application):
     """Configure all bot handlers"""
     try:
@@ -801,6 +825,15 @@ def setup_handlers(application):
         logger.error(f"❌ Error setting up handlers: {e}")
         raise
 
+async def post_init(application):
+    """Post initialization setup"""
+    try:
+        logger.info("🔧 Running post-initialization setup...")
+        await setup_bot_commands(application)
+        logger.info("✅ Post-initialization setup completed")
+    except Exception as e:
+        logger.error(f"❌ Error in post-initialization: {e}")
+
 def main():
     """Main function to run the bot"""
     try:
@@ -823,7 +856,7 @@ def main():
         
         # Create and configure application
         logger.info("🔧 Initializing bot application...")
-        application = Application.builder().token(BOT_TOKEN).build()
+        application = Application.builder().token(BOT_TOKEN).post_init(post_init).build()
         setup_handlers(application)
         
         # Start the bot
