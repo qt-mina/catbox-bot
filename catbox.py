@@ -444,8 +444,9 @@ async def process_file(update: Update, context: ContextTypes.DEFAULT_TYPE, file_
         # Download file to temporary location
         with tempfile.NamedTemporaryFile(delete=False) as temp_file:
             temp_path = temp_file.name
-            # FIXED: Use the correct method name for downloading files
-            await file_obj.download_to_drive(temp_path)
+            # FIXED: For python-telegram-bot 22.3, we need to get the File object first
+            file_info = await file_obj.get_file()
+            await file_info.download_to_drive(temp_path)
             logger.debug(f"📥 File downloaded to: {temp_path}")
         
         # Upload to catbox
@@ -491,12 +492,30 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_info = extract_user_info(update.message)
         log_with_user_info("INFO", "🚀 /start command executed", user_info)
         
-        # FIXED: Send start message with random photo
+        # Create inline keyboard with buttons
+        # First row: Updates and Support buttons
+        # Second row: Add Me To Your Group button
+        bot_username = context.bot.username
+        add_to_group_url = f"https://t.me/{bot_username}?startgroup=true"
+        
+        keyboard = [
+            [
+                InlineKeyboardButton("📢 Updates", url=CHANNEL_URL),
+                InlineKeyboardButton("💬 Support", url=GROUP_URL)
+            ],
+            [
+                InlineKeyboardButton("➕ Add Me To Your Group", url=add_to_group_url)
+            ]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        # Send start message with random photo and inline buttons
         random_photo = random.choice(RANDOM_PHOTOS)
         await update.message.reply_photo(
             photo=random_photo,
             caption=START_MESSAGE,
-            parse_mode=ParseMode.HTML
+            parse_mode=ParseMode.HTML,
+            reply_markup=reply_markup
         )
         
     except Exception as e:
