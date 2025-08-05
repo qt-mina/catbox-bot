@@ -427,10 +427,12 @@ async def process_file(update: Update, context: ContextTypes.DEFAULT_TYPE, file_
         # Show processing message
         size_mb = file_size / (1024 * 1024)
         processing_msg = await update.message.reply_text(
-            f"⏳ <b>Processing file...</b>\n"
-            f"📎 <b>File:</b> <code>{filename}</code>\n"
-            f"📏 <b>Size:</b> <code>{size_mb:.1f} MB</code>\n\n"
-            f"Downloading and uploading to Catbox...",
+            f"""
+⏳ <b>Processing file...</b>
+📎 <b>File:</b> <code>{filename}</code>
+📏 <b>Size:</b> <code>{size_mb:.1f} MB</code>
+
+Downloading and uploading to Catbox...""",
             parse_mode=ParseMode.HTML,
             disable_web_page_preview=True
         )
@@ -448,19 +450,28 @@ async def process_file(update: Update, context: ContextTypes.DEFAULT_TYPE, file_
         # Upload to catbox
         catbox_url = await upload_to_catbox(temp_path, filename)
         
-        # Send success message
+        # Create inline keyboard with the file URL button
+        keyboard = [
+            [InlineKeyboardButton("🔗 Open File", url=catbox_url)]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        # Send success message with inline button
         success_message = random.choice(SUCCESS_MESSAGES)
-        final_message = (
-            f"{success_message}\n\n"
-            f"🔗 <b>Direct link:</b> {catbox_url}\n\n"
-            f"📎 <b>Original filename:</b> <code>{filename}</code>\n"
-            f"📏 <b>Size:</b> <code>{size_mb:.1f} MB</code>\n\n"
-            f"☁️ <b>File is stored permanently on Catbox</b>"
-        )
+        final_message = f"""
+{success_message}
+
+🔗 <b>Direct link:</b> <code>{catbox_url}</code>
+
+<blockquote>📎 <b>Original filename:</b> <code>{filename}</code>
+📏 <b>Size:</b> <code>{size_mb:.1f} MB</code></blockquote>
+
+☁️ <b>File is stored permanently on Catbox!</b>"""
         await processing_msg.edit_text(
             final_message, 
             parse_mode=ParseMode.HTML,
-            disable_web_page_preview=True
+            disable_web_page_preview=True,
+            reply_markup=reply_markup
         )
         
         log_with_user_info("INFO", f"✅ Upload completed: {filename} -> {catbox_url}", user_info)
