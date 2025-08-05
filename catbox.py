@@ -1,15 +1,39 @@
-import logging
 import os
-import tempfile
-import random
 import time
-import threading
-from typing import Tuple, Dict, Any
-from http.server import BaseHTTPRequestHandler, HTTPServer
+import random
 import aiohttp
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Message, BotCommand
-from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
-from telegram.constants import ParseMode
+import logging
+import tempfile
+import threading
+
+from http.server import (
+    HTTPServer,
+    BaseHTTPRequestHandler
+)
+from typing import (
+    Any,
+    Dict,
+    Tuple
+)
+
+from telegram.constants import (
+    ParseMode
+)
+from telegram import (
+    Update,
+    Message,
+    BotCommand,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup
+)
+from telegram.ext import (
+    filters,
+    Application,
+    ContextTypes,
+    CommandHandler,
+    MessageHandler,
+    CallbackQueryHandler
+)
 
 # Configuration
 BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
